@@ -1,5 +1,5 @@
 #include <Arduino.h>
-
+#include <M5Atom.h>
 /*
 * LAB: 5
 * Name: ESP32 PWM LED Control
@@ -7,7 +7,7 @@
 * For More Info Visit: www.DeepBlueMbedded.com
 */
  
-#define LED_GPIO   5
+#define LED_GPIO   32
 #define PWM1_Ch    0
 #define PWM1_Res   8
 #define PWM1_Freq  1000
