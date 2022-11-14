@@ -1,10 +1,7 @@
 #include <Arduino.h>
 #include <M5Atom.h>
 /*
-* LAB: 5
-* Name: ESP32 PWM LED Control
-* Author: Khaled Magdy
-* For More Info Visit: www.DeepBlueMbedded.com
+* ESP32 PWM Control
 */
  
 #define LED_GPIO   32
@@ -25,11 +22,11 @@ void loop()
   while(PWM1_DutyCycle < 255)
   {
     ledcWrite(PWM1_Ch, PWM1_DutyCycle++);
-    delay(10);
+    delay(5);
   }
   while(PWM1_DutyCycle > 0)
   {
     ledcWrite(PWM1_Ch, PWM1_DutyCycle--);
-    delay(10);
+    delay(5);
   }
 }
