@@ -12,11 +12,15 @@ M5_KMeter sensor;
 #define PWM1_Ch    0
 #define PWM1_Res   8
 #define PWM1_Freq  1000
+
  
 int PWM1_DutyCycle = 0;
+int DIR = 25;
  
 void setup()
 {
+  pinMode(DIR, OUTPUT);
+  
   ledcAttachPin(LED_GPIO, PWM1_Ch);
   ledcSetup(PWM1_Ch, PWM1_Freq, PWM1_Res);
   Wire.begin(26, 32, 400000L); //Wire.begin((int)SDA, (int)SCL, 400000L);
@@ -25,6 +29,8 @@ void setup()
         // set sleep time. (5 second)
     //sensor.setSleepTime(5);
     Serial.begin(115200);
+
+      ledcWrite(PWM1_Ch, 255);
 }
  
 void loop()
@@ -32,8 +38,8 @@ void loop()
     // Sensor deep sleep.
     // (Number of seconds set by the setSleepTime function)
     //sensor.sleep();
-
-    delay(100);
+  
+    delay(10);
 
     // data read from unit.
     if (sensor.update()) {
@@ -45,6 +51,10 @@ void loop()
         float internaltemp = sensor.getInternalTemp();
 
         Serial.printf("%3.2f  /  %3.2f \n", temperature, internaltemp);
+       if (temperature > 95) digitalWrite(DIR, HIGH);
+              if (temperature < 95) digitalWrite(DIR, LOW);
+       // if (temperature >= 80) ledcWrite(PWM1_Ch, 0);
+       // if (temperature <= 40) ledcWrite(PWM1_Ch, 255);
     } else {
         Serial.printf("error %d \n", sensor.getError());
     }
