@@ -1,6 +1,15 @@
 #include <Arduino.h>
 #include <M5Atom.h>
 #include <M5_KMeter.h>
+#include <PID_v1.h>
+#include <SimpleKalmanFilter.h>
+
+//Define Variables we'll be connecting to
+double Setpoint, Input, Output;
+
+//Specify the links and initial tuning parameters
+double Kp=45, Ki=0.4, Kd=0; // from 50 to 90: double Kp=60, Ki=0.9, Kd=0;
+PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT); //PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 
 M5_KMeter sensor;
 
@@ -11,21 +20,25 @@ M5_KMeter sensor;
 #define LED_GPIO   21 //32
 #define PWM1_Ch    0
 #define PWM1_Res   8
-#define PWM1_Freq  1000
+#define PWM1_Freq  5
 
 uint8_t addr1 = 0x60;
 
 int PWM1_DutyCycle = 0;
 int DIR = 25;
-
+float estimated_value;
 float temperature;
 float temperature2;
 long tidsbavl = millis();
-
+SimpleKalmanFilter simpleKalmanFilter(2, 1, 1);
 void setup()
 {
   pinMode(DIR, OUTPUT);
-  
+
+  //Input = analogRead(PIN_INPUT);
+  Setpoint = 70;
+    myPID.SetMode(AUTOMATIC);
+
   ledcAttachPin(LED_GPIO, PWM1_Ch);
   ledcSetup(PWM1_Ch, PWM1_Freq, PWM1_Res);
   Wire.begin(26, 32, 400000L); //Wire.begin((int)SDA, (int)SCL, 400000L);
@@ -41,7 +54,7 @@ void setup()
     Serial.begin(115200);
 
       ledcWrite(PWM1_Ch, 255);
-     
+     digitalWrite(DIR, LOW);
 }
  
 void loop()
@@ -59,7 +72,7 @@ void loop()
 
         // get sensor temperature.
         temperature = sensor.getTemperature();
-
+ estimated_value = simpleKalmanFilter.updateEstimate(temperature);
         // get unit internal temperature.
         //float internaltemp = sensor.getInternalTemp();
         //Serial.printf("%3.2f  /  %3.2f \n", temperature, temperature2);
@@ -81,11 +94,16 @@ void loop()
         // get unit internal temperature.
         //float internaltemp = sensor.getInternalTemp();
       if (millis()>=tidsbavl+250){
-        Serial.printf("%3.2f  /  %3.2f \n", temperature, temperature2);
+        Serial.printf("%3.2f  /  %3.2f \n", temperature, temperature2); // blue (top), red (bottom)
         tidsbavl=millis();
     }
-       if (temperature2 > 96.5) digitalWrite(DIR, HIGH);
-              if (temperature2 < 96.5) digitalWrite(DIR, LOW);
+       //Input = estimated_value;
+       Input = temperature;
+         myPID.Compute();
+        ledcWrite(PWM1_Ch, Output); // analogWrite(PIN_OUTPUT, Output);
+        //Serial.println(Output);
+       //if (temperature2 > 96.5) digitalWrite(DIR, HIGH);
+         //     if (temperature2 < 96.5) digitalWrite(DIR, LOW);
        // if (temperature >= 80) ledcWrite(PWM1_Ch, 0);
        // if (temperature <= 40) ledcWrite(PWM1_Ch, 255);
     } else {
