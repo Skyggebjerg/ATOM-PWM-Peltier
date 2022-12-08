@@ -2,9 +2,6 @@
 #include <M5Atom.h>
 #include <M5_KMeter.h>
 #include <PID_v1.h>
-//#include <SimpleKalmanFilter.h>
-
-
 #include <RunningMedian.h>
 
 RunningMedian samples = RunningMedian(10);
@@ -27,10 +24,6 @@ PID ElongPID(&Input, &Output, &ElongSetpoint, ElongKp, ElongKi, ElongKd, DIRECT)
 PID coolPID(&Input, &Output, &CoolSetpoint, CoolKp, CoolKi, CoolKd, REVERSE);
 
 M5_KMeter sensor;
-
-/*
-* ESP32 PWM Control
-*/
  
 #define LED_GPIO   21 //32
 #define PWM1_Ch    0
@@ -45,20 +38,21 @@ float estimated_value;
 float temperature;
 float temperature2;
 long tidsbavl = millis();
-//SimpleKalmanFilter simpleKalmanFilter(2, 1, 1);
 bool coagstarted = false;
 long coagtimestamp;
 bool coolstarted = false;
 long cooltimestamp;
 bool annealing = false;
-bool elengation = false;
+long annealtimestamp;
+bool elongation = false;
+bool elongationstart = false;
+long elongtimestamp;
 
 
 void setup()
 {
   pinMode(DIR, OUTPUT);
 
-  //Input = analogRead(PIN_INPUT);
   Setpoint = 95;
   CoolSetpoint = 50;
 
@@ -79,15 +73,14 @@ void loop()
 
     // data read from unit.
     sensor.begin(&Wire, 0x66); // blue plot - top sensor
-    if (sensor.update()) {
+    sensor.update();
         // get sensor temperature.
-        temperature = sensor.getTemperature();
-    } 
+    temperature = sensor.getTemperature();
     
     sensor.begin(&Wire, 0x60); // red plot - bottom sensor
-    if (sensor.update()) {
+    sensor.update();
         // get sensor temperature.
-        temperature2 = sensor.getTemperature();
+    temperature2 = sensor.getTemperature();
 
        // Median and average calculation
        samples.add(temperature2); // add both bottom and lid temperatures
@@ -109,31 +102,47 @@ void loop()
           if (millis() - coagtimestamp >=  30000) {
             coagstarted = false;
             coolstarted = true;
-            cooltimestamp = millis();
+            //cooltimestamp = millis();
 
           }
         }
 
         if (coolstarted) {
-            if (a <= 50) {
-            cooltimestamp = millis();
+            if (a <= 55) {
+            annealtimestamp = millis();
+            //cooltimestamp = millis();
             annealing = true;
             coolstarted = false;
             digitalWrite(DIR, LOW);
-            Setpoint = 50;
+            Setpoint = 55;
             myPID.Compute();
             }
             else {
             digitalWrite(DIR, HIGH); // cooling started by reversing DIR 
             Output = 255;          
             }
+        }
+
+        if (annealing) {
+          if (millis() - annealtimestamp >=  30000) {
+            annealing = false;
+            elongationstart = true;
+            ElongSetpoint = 70;
+            ElongPID.Compute();
+        }
+
+        if (elongationstart) {
+          if (a >= 70) {
+          elongtimestamp = millis();
+          elongation = true;
+          elongationstart = false;
+          }
+
+
 
         }
+
         ledcWrite(PWM1_Ch, Output); 
         delay(100);
-
-    } 
-
-
 
 }
