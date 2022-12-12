@@ -4,24 +4,27 @@
 #include <PID_v1.h>
 #include <RunningMedian.h>
 
-RunningMedian samples = RunningMedian(10);
+RunningMedian samples = RunningMedian(5);
 
 //Define Variables we'll be connecting to
 double Setpoint, Input, Output;
 double CoolSetpoint;
-double ElongSetpoint;
+double ElongSetpoint; 
+double AnnealSetpoint;
 
 //Specify the links and initial tuning parameters
 // From 50 to 70: double Kp=120, Ki=9, Kd=2.25;
 // From 70 to 90: double Kp=60, Ki=9, Kd=2.25;
 
-double Kp=60, Ki=9, Kd=2.25; // 45 obs: 50-70: Kp=40, Ki=0.4, Kd=0;
-double CoolKp=120, CoolKi=9, CoolKd=2.25;
-double ElongKp=120, ElongKi=9, ElongKd=2.25;
+double Kp=20, Ki=4, Kd=3; // 45 obs: 50-70: Kp=40, Ki=0.4, Kd=0; Kp=60, Ki=9, Kd=2.25;
+double CoolKp=20, CoolKi=3, CoolKd=4; //CoolKp=120, CoolKi=9, CoolKd=2.25;
+double ElongKp=10, ElongKi=1, ElongKd=1; //ElongKp=120, ElongKi=9, ElongKd=2.25;
+double AnnealgKp=1, AnnealKi=0, AnnealKd=0;
 
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT); //PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 PID ElongPID(&Input, &Output, &ElongSetpoint, ElongKp, ElongKi, ElongKd, DIRECT);
 PID coolPID(&Input, &Output, &CoolSetpoint, CoolKp, CoolKi, CoolKd, REVERSE);
+PID AnnealPID(&Input, &Output, &AnnealSetpoint, AnnealgKp, AnnealKi, AnnealKd, DIRECT);
 
 M5_KMeter sensor;
  
@@ -47,17 +50,22 @@ long annealtimestamp;
 bool elongation = false;
 bool elongationstart = false;
 long elongtimestamp;
+bool boilingstart = false;
 
 
 void setup()
 {
   pinMode(DIR, OUTPUT);
 
-  Setpoint = 95;
-  CoolSetpoint = 50;
+  Setpoint = 100; //95, tapesensor is 6 degress lower/watersensor 4 degrees lower
+  CoolSetpoint = 55; //tapesensor OK/OK
+  AnnealSetpoint = 55; //tapesensor OK/OK
+  ElongSetpoint = 71; //70, tapesensor is 2 degrees lower/watersensor 1 degree lower
 
   myPID.SetMode(AUTOMATIC);
   coolPID.SetMode(AUTOMATIC);
+  ElongPID.SetMode(AUTOMATIC);
+  AnnealPID.SetMode(AUTOMATIC);
 
   ledcAttachPin(LED_GPIO, PWM1_Ch);
   ledcSetup(PWM1_Ch, PWM1_Freq, PWM1_Res);
@@ -66,11 +74,13 @@ void setup()
 
       ledcWrite(PWM1_Ch, 255);
      digitalWrite(DIR, LOW);
+
+     boilingstart = true; //Start the loop once for test
 }
  
 void loop()
 {
-
+// ***************************************************************************LOOP***********************************************************************
     // data read from unit.
     sensor.begin(&Wire, 0x66); // blue plot - top sensor
     sensor.update();
@@ -84,21 +94,39 @@ void loop()
 
        // Median and average calculation
        samples.add(temperature2); // add both bottom and lid temperatures
-       samples.add(temperature);
+       //samples.add(temperature);
           float l = samples.getLowest();
           float m = samples.getMedian();
           float a = samples.getAverage();
           float h = samples.getHighest();
-          Input = a; // Use average as input for PID
-          myPID.Compute();
-          Serial.printf("%3.2f/%3.2f/%3.2f\n", temperature, temperature2, a); // print raw and runningmedian
+        //  Input = a; // Use average as input for PID
+        //  myPID.Compute();
+        //  Serial.printf("%3.2f/%3.2f\n", temperature2, a); // print raw and runningmedian
 
-        if (a >= 95 && coagstarted == false) {
+/*         if (a >= 95 && coagstarted == false) {
+          coagtimestamp = millis();
+          coagstarted = true;
+        } */
+
+          
+          //boilingstart = true;
+
+          
+
+        if (boilingstart) {
+            Setpoint = 100;  
+            Input = a; // Use average as input for PID
+            myPID.Compute();
+          if (a >= 100) {
+          boilingstart = false;
           coagtimestamp = millis();
           coagstarted = true;
         }
+        }
 
         if (coagstarted) {
+          Input = a;
+          myPID.Compute();
           if (millis() - coagtimestamp >=  30000) {
             coagstarted = false;
             coolstarted = true;
@@ -109,40 +137,78 @@ void loop()
 
         if (coolstarted) {
             if (a <= 55) {
-            annealtimestamp = millis();
-            //cooltimestamp = millis();
-            annealing = true;
-            coolstarted = false;
-            digitalWrite(DIR, LOW);
-            Setpoint = 55;
-            myPID.Compute();
+             annealtimestamp = millis();
+             annealing = true;
+             coolstarted = false;
+             //Output = 0;
+             //digitalWrite(DIR, LOW); // normal mode
+
             }
             else {
-            digitalWrite(DIR, HIGH); // cooling started by reversing DIR 
-            Output = 255;          
+             digitalWrite(DIR, HIGH); // cooling mode started by reversing DIR 
+            //Setpoint = 55;
+            CoolSetpoint = 55;
+            Input = a;
+            coolPID.Compute();
+            // Output = 255;          
             }
         }
 
         if (annealing) {
-          if (millis() - annealtimestamp >=  30000) {
-            annealing = false;
-            elongationstart = true;
-            ElongSetpoint = 70;
-            ElongPID.Compute();
+            //Setpoint = 55;
+            //if (millis() - annealtimestamp <  10000) {
+              CoolSetpoint = 55;
+              Input = a;
+              coolPID.Compute();
+            //}
+            /* if (temperature2 > 55) {
+              
+              digitalWrite(DIR, HIGH); //cool down actively
+              Output = 255;
+            }
+            if (temperature2 < 55) {
+              digitalWrite(DIR, LOW);
+              Output = 64;
+            } */
+            //myPID.Compute();
+            
+            /* if (millis() - annealtimestamp >=  10000) {
+              AnnealSetpoint = 55;
+              //Output = 0;
+              digitalWrite(DIR, LOW); // normal mode
+              AnnealPID.Compute();
+            } */
+            if (millis() - annealtimestamp >=  30000) {
+             annealing = false;
+             elongationstart = true;
+             digitalWrite(DIR, LOW); //set direction to normal heating 
+            }
         }
 
         if (elongationstart) {
-          if (a >= 70) {
-          elongtimestamp = millis();
-          elongation = true;
-          elongationstart = false;
+            ElongSetpoint = 71;
+            Input = a;
+            ElongPID.Compute();
+          if (a >= 71) {
+            elongtimestamp = millis();
+            elongation = true;
+            elongationstart = false;
           }
-
-
-
         }
 
-        ledcWrite(PWM1_Ch, Output); 
-        delay(100);
+        if (elongation) {
+          ElongSetpoint = 71;
+          Input = a;
+          ElongPID.Compute();
+          if (millis() - elongtimestamp >= 120000) {
+            elongation = false;
+            boilingstart = true;
 
+          }
+        }
+        
+        ledcWrite(PWM1_Ch, Output); 
+        Serial.printf("%3.2f/%3.2f/%3.2f/%3.2f\n", temperature2, a, Output, temperature);
+        delay(100);
+        // ******************************************************************LOOP END**********************************************************************************
 }
