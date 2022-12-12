@@ -12,6 +12,8 @@ double CoolSetpoint;
 double ElongSetpoint; 
 double AnnealSetpoint;
 
+int cycle;
+
 //Specify the links and initial tuning parameters
 // From 50 to 70: double Kp=120, Ki=9, Kd=2.25;
 // From 70 to 90: double Kp=60, Ki=9, Kd=2.25;
@@ -43,6 +45,7 @@ float temperature2;
 long tidsbavl = millis();
 bool coagstarted = false;
 long coagtimestamp;
+long coagtime;
 bool coolstarted = false;
 long cooltimestamp;
 bool annealing = false;
@@ -51,6 +54,8 @@ bool elongation = false;
 bool elongationstart = false;
 long elongtimestamp;
 bool boilingstart = false;
+int numcycles = 30; //Number of thermocycles. Should be 30
+bool roomtemp = false;
 
 
 void setup()
@@ -76,16 +81,20 @@ void setup()
      digitalWrite(DIR, LOW);
 
      boilingstart = true; //Start the loop once for test
+     cycle = 1;
 }
  
 void loop()
 {
-// ***************************************************************************LOOP***********************************************************************
+// ************************************************************************ Cycle LOOP Start ***********************************************************************
+    
+    for (cycle = 1; cycle <= numcycles;) { 
+
     // data read from unit.
-    sensor.begin(&Wire, 0x66); // blue plot - top sensor
-    sensor.update();
+    //sensor.begin(&Wire, 0x66); // blue plot - top sensor
+    //sensor.update();
         // get sensor temperature.
-    temperature = sensor.getTemperature();
+    //temperature = sensor.getTemperature();
     
     sensor.begin(&Wire, 0x60); // red plot - bottom sensor
     sensor.update();
@@ -127,7 +136,9 @@ void loop()
         if (coagstarted) {
           Input = a;
           myPID.Compute();
-          if (millis() - coagtimestamp >=  30000) {
+          if(cycle == 1) coagtime = 300000; // long denaturing during first cycle: 300000 = 5 minutes
+          if(cycle > 1) coagtime = 30000; // 30 seconds
+          if (millis() - coagtimestamp >=  coagtime) {
             coagstarted = false;
             coolstarted = true;
             //cooltimestamp = millis();
@@ -200,15 +211,35 @@ void loop()
           ElongSetpoint = 71;
           Input = a;
           ElongPID.Compute();
-          if (millis() - elongtimestamp >= 120000) {
+          if(cycle == numcycles) {
+            if (millis() - elongtimestamp >= 180000) {
+              elongation = false;
+              roomtemp = true;
+            }
+          }
+          else {
+            if (millis() - elongtimestamp >= 120000) { //120000
             elongation = false;
             boilingstart = true;
-
+            cycle++; //end of cycle. Only restart new cycle if numcycles is not reached
+            }
           }
         }
         
+        if (roomtemp) { //run forever. The FOR Loop never ends because cycle is not increased
+              digitalWrite(DIR, HIGH); // cooling mode started by reversing DIR
+              CoolSetpoint = 21; // room temperature
+              Input = a;
+              coolPID.Compute();
+        }
+
         ledcWrite(PWM1_Ch, Output); 
-        Serial.printf("%3.2f/%3.2f/%3.2f/%3.2f\n", temperature2, a, Output, temperature);
+        Serial.printf("%3.2f/%3.2f/%3.2f/%2d\n", temperature2, a, Output, cycle);
         delay(100);
-        // ******************************************************************LOOP END**********************************************************************************
+
+    }
+        // ************************************************************** Cycle LOOP END **********************************************************************************
+
+ // do nothing
+
 }
