@@ -199,6 +199,7 @@ void loop()
         }
 
         if (elongationstart) {
+          
             ElongPID.SetMode(AUTOMATIC); // reset parm?
             ElongSetpoint = 55;
             Input = a;
@@ -211,6 +212,8 @@ void loop()
         }
 
         if (elongation) {
+          digitalWrite(DIR, LOW); //set direction to normal heating
+          ElongPID.SetMode(AUTOMATIC);
           ElongSetpoint = 55;
           Input = a;
           ElongPID.Compute();
