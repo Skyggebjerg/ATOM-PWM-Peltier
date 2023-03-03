@@ -11,6 +11,7 @@ double Setpoint, Input, Output;
 double CoolSetpoint;
 double ElongSetpoint; 
 double AnnealSetpoint;
+double ScaledOutput;
 
 int cycle;
 
@@ -18,7 +19,7 @@ int cycle;
 // From 50 to 70: double Kp=120, Ki=9, Kd=2.25;
 // From 70 to 90: double Kp=60, Ki=9, Kd=2.25;
 
-double Kp=30, Ki=1, Kd=4; // 45 obs: 50-70: Kp=40, Ki=0.4, Kd=0; Kp=60, Ki=9, Kd=2.25; 20,4,2; 30,1,4
+double Kp=4, Ki=0.6, Kd=1.7; // 45 obs: 50-70: Kp=40, Ki=0.4, Kd=0; Kp=60, Ki=9, Kd=2.25; 20,4,2; 30,1,4; 12.5, 10, 15; Y: 5,0.6,1.5; 5,0.6,1.7; 4,0.6,1.7;
 double CoolKp=20, CoolKi=3, CoolKd=4; //CoolKp=120, CoolKi=9, CoolKd=2.25;
 double ElongKp=20, ElongKi=0.5, ElongKd=1; //ElongKp=120, ElongKi=9, ElongKd=2.25; 10,1,1
 double AnnealgKp=1, AnnealKi=0, AnnealKd=0;
@@ -96,7 +97,7 @@ void loop()
         // get sensor temperature.
     //temperature = sensor.getTemperature();
     
-    sensor.begin(&Wire, 0x60); // red plot - bottom sensor
+    sensor.begin(&Wire, 0x66); // red plot - bottom sensor
     sensor.update();
         // get sensor temperature.
     temperature2 = sensor.getTemperature();
@@ -136,8 +137,8 @@ void loop()
         if (coagstarted) {
           Input = a;
           myPID.Compute();
-          if(cycle == 1) coagtime = 180000; // long denaturing during first cycle: 300000 = 5 minutes ; 3 min
-          if(cycle > 1) coagtime = 15000; // 30 seconds ; 15 secs
+          if(cycle == 1) coagtime = 60000; // long denaturing during first cycle: 300000 = 5 minutes ; 3 min
+          if(cycle > 1) coagtime = 60000; // 30 seconds ; 15 secs
           if (millis() - coagtimestamp >=  coagtime) {
             coagstarted = false;
             coolstarted = true;
@@ -150,19 +151,21 @@ void loop()
             if (a <= 55) { // actually it is supposed to be 60, but we need to go lower because the temp sensor is too close to peltier
              //annealtimestamp = millis();
              elongtimestamp = millis();
-             elongation = true;
+             
              //annealing = true;
              coolstarted = false;
+             elongation = true;
              //Output = 0;
              //digitalWrite(DIR, LOW); // normal mode
 
             }
             else {
-             digitalWrite(DIR, HIGH); // cooling mode started by reversing DIR 
-            //Setpoint = 55;
-            CoolSetpoint = 55; // actually it is supposed to be 60, but we need to go lower because the temp sensor is too close to peltier
+             //digitalWrite(DIR, HIGH); // cooling mode started by reversing DIR 
+            Setpoint = 55;
+            //CoolSetpoint = 55; // actually it is supposed to be 60, but we need to go lower because the temp sensor is too close to peltier
             Input = a;
-            coolPID.Compute();
+            myPID.Compute();
+            //coolPID.Compute();
             // Output = 255;          
             }
         }
@@ -212,11 +215,13 @@ void loop()
         }
 
         if (elongation) {
-          digitalWrite(DIR, LOW); //set direction to normal heating
-          ElongPID.SetMode(AUTOMATIC);
-          ElongSetpoint = 55;
+          //digitalWrite(DIR, LOW); //set direction to normal heating
+          //ElongPID.SetMode(AUTOMATIC);
+          Setpoint = 55;
+          //ElongSetpoint = 55;
           Input = a;
-          ElongPID.Compute();
+          myPID.Compute();
+          //ElongPID.Compute();
           if(cycle == numcycles) {
             if (millis() - elongtimestamp >= 60000) {
               elongation = false;
@@ -233,13 +238,26 @@ void loop()
         }
         
         if (roomtemp) { //run forever. The FOR Loop never ends because cycle is not increased
-              digitalWrite(DIR, HIGH); // cooling mode started by reversing DIR
-              CoolSetpoint = 21; // room temperature
+              //digitalWrite(DIR, HIGH); // cooling mode started by reversing DIR
+              //CoolSetpoint = 21; // room temperature
+              Setpoint = 55;
               Input = a;
-              coolPID.Compute();
+              myPID.Compute();
+              //coolPID.Compute();
         }
 
-        ledcWrite(PWM1_Ch, Output); 
+        if (Output >= 128)
+          {
+            digitalWrite(DIR, LOW); //heating
+            ScaledOutput = (Output - 128) * 2;
+          }
+        else
+          {
+            digitalWrite(DIR, HIGH); //cooling
+            ScaledOutput = (abs(Output - 127)) * 2;
+          }
+
+        ledcWrite(PWM1_Ch, ScaledOutput); 
         Serial.printf("%3.2f/%3.2f/%3.2f/%2d\n", temperature2, a, Output, cycle);
         delay(100);
 
