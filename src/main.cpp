@@ -4,7 +4,7 @@
 #include <PID_v1.h>
 #include <RunningMedian.h>
 
-RunningMedian samples = RunningMedian(5);
+RunningMedian samples = RunningMedian(9);
 
 //Define Variables we'll be connecting to
 double Setpoint, Input, Output;
@@ -19,7 +19,7 @@ int cycle;
 // From 50 to 70: double Kp=120, Ki=9, Kd=2.25;
 // From 70 to 90: double Kp=60, Ki=9, Kd=2.25;
 
-double Kp=4, Ki=0.6, Kd=1.7; // 45 obs: 50-70: Kp=40, Ki=0.4, Kd=0; Kp=60, Ki=9, Kd=2.25; 20,4,2; 30,1,4; 12.5, 10, 15; Y: 5,0.6,1.5; 5,0.6,1.7; 4,0.6,1.7;
+double Kp=6, Ki=0.4, Kd=0.1; // 45 obs: 50-70: Kp=40, Ki=0.4, Kd=0; Kp=60, Ki=9, Kd=2.25; 20,4,2; 30,1,4; 12.5, 10, 15; Y: 5,0.6,1.5; 5,0.6,1.7; 4,0.6,1.7; 3,0.2,1.0;
 double CoolKp=20, CoolKi=3, CoolKd=4; //CoolKp=120, CoolKi=9, CoolKd=2.25;
 double ElongKp=20, ElongKi=0.5, ElongKd=1; //ElongKp=120, ElongKi=9, ElongKd=2.25; 10,1,1
 double AnnealgKp=1, AnnealKi=0, AnnealKd=0;
@@ -63,10 +63,10 @@ void setup()
 {
   pinMode(DIR, OUTPUT);
 
-  Setpoint = 95; //95, tapesensor is 6 degress lower/watersensor 4 degrees lower
-  CoolSetpoint = 55; //tapesensor OK/OK
-  AnnealSetpoint = 55; //tapesensor OK/OK
-  ElongSetpoint = 70; //70, tapesensor is 2 degrees lower/watersensor 1 degree lower
+  Setpoint = 93; //95, tapesensor is 6 degress lower/watersensor 4 degrees lower
+  CoolSetpoint = 60; //tapesensor OK/OK
+  AnnealSetpoint = 60; //tapesensor OK/OK
+  ElongSetpoint = 60; //70, tapesensor is 2 degrees lower/watersensor 1 degree lower
 
   myPID.SetMode(AUTOMATIC);
   coolPID.SetMode(AUTOMATIC);
@@ -124,10 +124,10 @@ void loop()
           
 
         if (boilingstart) {
-            Setpoint = 94;  
+            Setpoint = 93;  
             Input = a; // Use average as input for PID
             myPID.Compute();
-          if (a >= 94) {
+          if (a >= 93) {
           boilingstart = false;
           coagtimestamp = millis();
           coagstarted = true;
@@ -137,8 +137,8 @@ void loop()
         if (coagstarted) {
           Input = a;
           myPID.Compute();
-          if(cycle == 1) coagtime = 60000; // long denaturing during first cycle: 300000 = 5 minutes ; 3 min
-          if(cycle > 1) coagtime = 60000; // 30 seconds ; 15 secs
+          if(cycle == 1) coagtime = 180000; // long denaturing during first cycle: 300000 = 5 minutes ; 3 min
+          if(cycle > 1) coagtime = 15000; // 30 seconds ; 15 secs
           if (millis() - coagtimestamp >=  coagtime) {
             coagstarted = false;
             coolstarted = true;
@@ -148,7 +148,7 @@ void loop()
         }
 
         if (coolstarted) {
-            if (a <= 55) { // actually it is supposed to be 60, but we need to go lower because the temp sensor is too close to peltier
+            if (a <= 60) { // actually it is supposed to be 60, but we need to go lower because the temp sensor is too close to peltier
              //annealtimestamp = millis();
              elongtimestamp = millis();
              
@@ -161,7 +161,7 @@ void loop()
             }
             else {
              //digitalWrite(DIR, HIGH); // cooling mode started by reversing DIR 
-            Setpoint = 55;
+            Setpoint = 60;
             //CoolSetpoint = 55; // actually it is supposed to be 60, but we need to go lower because the temp sensor is too close to peltier
             Input = a;
             myPID.Compute();
@@ -173,7 +173,7 @@ void loop()
         if (annealing) {
             //Setpoint = 55;
             //if (millis() - annealtimestamp <  10000) {
-              CoolSetpoint = 55; // actually it is supposed to be 60, but we need to go lower because the temp sensor is too close to peltier
+              CoolSetpoint = 60; // actually it is supposed to be 60, but we need to go lower because the temp sensor is too close to peltier
               Input = a;
               coolPID.Compute();
             //}
@@ -204,7 +204,7 @@ void loop()
         if (elongationstart) {
           
             ElongPID.SetMode(AUTOMATIC); // reset parm?
-            ElongSetpoint = 55;
+            ElongSetpoint = 60;
             Input = a;
             ElongPID.Compute();
           if (a <= 55) {
@@ -217,7 +217,7 @@ void loop()
         if (elongation) {
           //digitalWrite(DIR, LOW); //set direction to normal heating
           //ElongPID.SetMode(AUTOMATIC);
-          Setpoint = 55;
+          Setpoint = 60;
           //ElongSetpoint = 55;
           Input = a;
           myPID.Compute();
@@ -240,7 +240,7 @@ void loop()
         if (roomtemp) { //run forever. The FOR Loop never ends because cycle is not increased
               //digitalWrite(DIR, HIGH); // cooling mode started by reversing DIR
               //CoolSetpoint = 21; // room temperature
-              Setpoint = 55;
+              Setpoint = 21;
               Input = a;
               myPID.Compute();
               //coolPID.Compute();
@@ -254,6 +254,7 @@ void loop()
         else
           {
             digitalWrite(DIR, HIGH); //cooling
+            //ScaledOutput = (abs(Output - 127)) * (abs(Output-127) * 0.015);
             ScaledOutput = (abs(Output - 127)) * 2;
           }
 
