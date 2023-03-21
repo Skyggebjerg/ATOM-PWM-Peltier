@@ -4,7 +4,7 @@
 #include <PID_v1.h>
 #include <RunningMedian.h>
 
-RunningMedian samples = RunningMedian(9);
+RunningMedian samples = RunningMedian(5);
 
 //Define Variables we'll be connecting to
 double Setpoint, Input, Output;
@@ -19,14 +19,14 @@ int cycle;
 // From 50 to 70: double Kp=120, Ki=9, Kd=2.25;
 // From 70 to 90: double Kp=60, Ki=9, Kd=2.25;
 
-double Kp=6, Ki=0.4, Kd=0.1; // 45 obs: 50-70: Kp=40, Ki=0.4, Kd=0; Kp=60, Ki=9, Kd=2.25; 20,4,2; 30,1,4; 12.5, 10, 15; Y: 5,0.6,1.5; 5,0.6,1.7; 4,0.6,1.7; 3,0.2,1.0;
-double CoolKp=20, CoolKi=3, CoolKd=4; //CoolKp=120, CoolKi=9, CoolKd=2.25;
-double ElongKp=20, ElongKi=0.5, ElongKd=1; //ElongKp=120, ElongKi=9, ElongKd=2.25; 10,1,1
+double Kp=5, Ki=1.15, Kd=0.1; // i:0.4;*****45 obs: 6,0.4,0.1; ny: 4,1,0.1;
+double CoolKp=6, CoolKi=0.4, CoolKd=0.1; //CoolKp=120, CoolKi=9, CoolKd=2.25;
+double ElongKp=6, ElongKi=0.4, ElongKd=0.1; //ElongKp=120, ElongKi=9, ElongKd=2.25; 10,1,1
 double AnnealgKp=1, AnnealKi=0, AnnealKd=0;
 
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT); //PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 PID ElongPID(&Input, &Output, &ElongSetpoint, ElongKp, ElongKi, ElongKd, DIRECT);
-PID coolPID(&Input, &Output, &CoolSetpoint, CoolKp, CoolKi, CoolKd, REVERSE);
+PID coolPID(&Input, &Output, &CoolSetpoint, CoolKp, CoolKi, CoolKd, DIRECT); // ***************************************
 PID AnnealPID(&Input, &Output, &AnnealSetpoint, AnnealgKp, AnnealKi, AnnealKd, DIRECT);
 
 M5_KMeter sensor;
@@ -34,7 +34,7 @@ M5_KMeter sensor;
 #define LED_GPIO   21 //32
 #define PWM1_Ch    0
 #define PWM1_Res   8
-#define PWM1_Freq  5
+#define PWM1_Freq  5 // 5
 
 uint8_t addr1 = 0x60;
 
@@ -55,7 +55,7 @@ bool elongation = false;
 bool elongationstart = false;
 long elongtimestamp;
 bool boilingstart = false;
-int numcycles = 40; //Number of thermocycles. Should be 30
+int numcycles = 40; //Number of thermocycles. Should be 40
 bool roomtemp = false;
 
 
@@ -98,6 +98,7 @@ void loop()
     //temperature = sensor.getTemperature();
     
     sensor.begin(&Wire, 0x66); // red plot - bottom sensor
+    //sensor.changeAddr(0x66);
     sensor.update();
         // get sensor temperature.
     temperature2 = sensor.getTemperature();
@@ -124,10 +125,10 @@ void loop()
           
 
         if (boilingstart) {
-            Setpoint = 93;  
+            Setpoint = 94;  
             Input = a; // Use average as input for PID
             myPID.Compute();
-          if (a >= 93) {
+          if (a >= 94) {
           boilingstart = false;
           coagtimestamp = millis();
           coagstarted = true;
@@ -137,8 +138,8 @@ void loop()
         if (coagstarted) {
           Input = a;
           myPID.Compute();
-          if(cycle == 1) coagtime = 180000; // long denaturing during first cycle: 300000 = 5 minutes ; 3 min
-          if(cycle > 1) coagtime = 15000; // 30 seconds ; 15 secs
+          if(cycle == 0) coagtime = 180000; // long denaturing during first cycle: 300000 = 5 minutes ; 3 min
+          if(cycle > 0) coagtime = 25000; // 30 seconds ; 15 secs; 25 secs
           if (millis() - coagtimestamp >=  coagtime) {
             coagstarted = false;
             coolstarted = true;
@@ -194,7 +195,7 @@ void loop()
               digitalWrite(DIR, LOW); // normal mode
               AnnealPID.Compute();
             } */
-            if (millis() - annealtimestamp >=  60000) {
+            if (millis() - annealtimestamp >=  90000) {
              annealing = false;
              elongationstart = true;
              digitalWrite(DIR, LOW); //set direction to normal heating 
@@ -221,15 +222,15 @@ void loop()
           //ElongSetpoint = 55;
           Input = a;
           myPID.Compute();
-          //ElongPID.Compute();
+          // ElongPID.Compute();
           if(cycle == numcycles) {
-            if (millis() - elongtimestamp >= 60000) {
+            if (millis() - elongtimestamp >= 90000) {
               elongation = false;
               roomtemp = true;
             }
           }
           else {
-            if (millis() - elongtimestamp >= 60000) { //120000
+            if (millis() - elongtimestamp >= 90000) { //120000
             elongation = false;
             boilingstart = true;
             cycle++; //end of cycle. Only restart new cycle if numcycles is not reached
@@ -240,10 +241,11 @@ void loop()
         if (roomtemp) { //run forever. The FOR Loop never ends because cycle is not increased
               //digitalWrite(DIR, HIGH); // cooling mode started by reversing DIR
               //CoolSetpoint = 21; // room temperature
-              Setpoint = 21;
-              Input = a;
-              myPID.Compute();
+              //Setpoint = 21;
+              //Input = a;
+              //myPID.Compute();
               //coolPID.Compute();
+              Output = 127; // In principle the PWM will be zero and no heating or cooling will take place
         }
 
         if (Output >= 128)
@@ -254,7 +256,6 @@ void loop()
         else
           {
             digitalWrite(DIR, HIGH); //cooling
-            //ScaledOutput = (abs(Output - 127)) * (abs(Output-127) * 0.015);
             ScaledOutput = (abs(Output - 127)) * 2;
           }
 
