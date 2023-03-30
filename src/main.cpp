@@ -19,7 +19,7 @@ int cycle;
 // From 50 to 70: double Kp=120, Ki=9, Kd=2.25;
 // From 70 to 90: double Kp=60, Ki=9, Kd=2.25;
 
-double Kp=5, Ki=1.15, Kd=0.1; // i:0.4;*****45 obs: 6,0.4,0.1; ny: 4,1,0.1;
+double Kp=6, Ki=0.4, Kd=0.1; // i:0.4;*****45 obs: 6,0.4,0.1; ny: 4,1,0.1;
 double CoolKp=6, CoolKi=0.4, CoolKd=0.1; //CoolKp=120, CoolKi=9, CoolKd=2.25;
 double ElongKp=6, ElongKi=0.4, ElongKd=0.1; //ElongKp=120, ElongKi=9, ElongKd=2.25; 10,1,1
 double AnnealgKp=1, AnnealKi=0, AnnealKd=0;
